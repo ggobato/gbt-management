@@ -205,4 +205,63 @@ def atualizar_cliente(
         ) from e 
 
     return cliente_atualizado
-    
+
+@app.delete("/clientes/{cliente_id}", tags=["Clientes"])
+def desativar_cliente(cliente_id: int):
+
+    query = text("""
+        UPDATE clientes
+        SET
+            ativo = 0,
+            atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = :cliente_id
+        RETURNING *
+    """)
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            query,
+            {"cliente_id": cliente_id}
+        )
+
+        cliente = result.mappings().one_or_none()
+
+        if cliente is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Cliente não encontrado."
+            )
+
+        cliente_desativado = dict(cliente)
+
+    return cliente_desativado
+
+@app.patch("/clientes/{cliente_id}/reativar", tags=["Clientes"])
+def reativar_cliente(cliente_id: int):
+
+    query = text("""
+        UPDATE clientes
+        SET
+            ativo = 1,
+            atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = :cliente_id
+        RETURNING *
+    """)
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            query,
+            {"cliente_id": cliente_id}
+        )
+
+        cliente = result.mappings().one_or_none()
+
+        if cliente is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Cliente não encontrado."
+            )
+
+        cliente_reativado = dict(cliente)
+
+    return cliente_reativado
