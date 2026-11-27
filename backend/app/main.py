@@ -54,20 +54,35 @@ def listar_clientes():
 
     return clientes
 
+@app.get("/clientes/{cliente_id}", tags=["Clientes"])
+def buscar_cliente(cliente_id: int):
+
+    query = text("""
+        SELECT *
+        FROM clientes
+        WHERE id = :cliente_id
+    """)
+
+    with engine.connect() as conn:
+        result = conn.execute(
+            query,
+            {"cliente_id": cliente_id}
+        )
+
+        cliente = result.mappings().one_or_none()
+
+        if cliente is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Cliente não encontrado."
+            )
+
+        return dict(cliente)
+
 @app.post("/clientes", tags=["Clientes"], status_code=status.HTTP_201_CREATED)
 def criar_cliente(cliente: ClienteCreate):
+    
     dados = cliente.model_dump()
-
-    if dados["cnpj"]:
-        dados["cnpj"] = (
-            dados["cnpj"]
-            .replace(".", "")
-            .replace("/", "")
-            .replace("-", "")
-            .upper()
-        )
-    else:
-        dados["cnpj"] = None
 
     query = text("""
         INSERT INTO clientes (
