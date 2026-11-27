@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from .database import engine
-from .schemas import ClienteCreate
+from .schemas import ClienteCreate, ClienteUpdate
 
 app = FastAPI(
     title="Gestão de Uniformes API",
@@ -81,7 +81,7 @@ def buscar_cliente(cliente_id: int):
 
 @app.post("/clientes", tags=["Clientes"], status_code=status.HTTP_201_CREATED)
 def criar_cliente(cliente: ClienteCreate):
-    
+
     dados = cliente.model_dump()
 
     query = text("""
@@ -141,3 +141,68 @@ def criar_cliente(cliente: ClienteCreate):
         ) from e
 
     return novo_cliente
+
+@app.patch("/clientes/{cliente_id}", tags=["Clientes"])
+def atualizar_cliente(
+    cliente_id: int,
+    cliente: ClienteUpdate
+):
+    dados = cliente.model_dump(exclude_unset=True)
+
+    if not dados:
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhum campo informado para atualização."
+        )
+
+    campos_permitidos = ClienteCreate.model_fields
+
+    campos = [
+        campo
+        for campo in dados
+        if campo in campos_permitidos
+    ]
+
+    campos_sql = ", ".join(
+        f"{campo} = :{campo}"
+        for campo in campos
+    )
+
+    query = text(f"""
+    UPDATE clientes
+    SET
+        {campos_sql},
+        atualizado_em = CURRENT_TIMESTAMP
+        WHERE id = :cliente_id
+        RETURNING *
+        """)
+
+    dados["cliente_id"] = cliente_id
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(query, dados)
+            registro = result.mappings().one_or_none()
+
+            if registro is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Cliente não encontrado."
+                )
+            
+            cliente_atualizado = dict(registro)
+
+    except IntegrityError as e:
+        if "UNIQUE constraint failed: clientes.cnpj" in str(e.orig):
+            raise HTTPException(
+                status_code=409,
+                detail="CNPJ já cadastrado."
+            ) from e
+
+        raise HTTPException(
+            status_code=400,
+            detail="Dados incompatíveis com as restrições do banco."
+        ) from e 
+
+    return cliente_atualizado
+    

@@ -85,3 +85,21 @@ class ClienteCreate(BaseModel):
             raise ValueError("UF inválida.")
 
         return value
+class ClienteUpdate(ClienteCreate):
+
+    razao_social: str | None = Field(
+        default=None,
+        min_length=1
+    )
+
+    @model_validator(mode="after")
+    def validar_atualizacao(self):
+        if (
+            "razao_social" in self.model_fields_set
+            and self.razao_social is None
+        ):
+            raise ValueError(
+                "Razão Social não pode ser nulo."
+            )
+
+        return self
